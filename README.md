@@ -140,3 +140,12 @@ python -m unittest discover -s tests -v
 ```
 
 Tests use mocked API responses and do not download mods.
+
+## Build an executable
+
+Install the build dependency and run PyInstaller from the repository root:
+
+```powershell
+python -m pip install -e ".[build]"
+python -m PyInstaller --clean --noconfirm gamebanana.spec
+```
