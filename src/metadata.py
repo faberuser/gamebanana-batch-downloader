@@ -4,7 +4,7 @@ import json
 import os
 
 from . import api
-from .paths import apply_timestamp, remove_legacy_mod_id_marker
+from .paths import apply_timestamp
 
 
 METADATA_PROPERTIES = [
@@ -53,7 +53,6 @@ def write_mod_metadata(
         except OSError:
             pass
         raise
-    remove_legacy_mod_id_marker(folder_name)
     if preserve_time:
         timestamp = mod.get("_tsDateModified") or mod.get("_tsDateAdded")
         apply_timestamp(metadata_path, timestamp)

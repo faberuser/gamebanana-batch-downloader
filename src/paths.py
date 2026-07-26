@@ -1,4 +1,4 @@
-"""Filesystem naming, timestamps, markers, and category paths."""
+"""Filesystem naming, timestamps, metadata lookup, and category paths."""
 
 import json
 import os
@@ -145,16 +145,6 @@ def read_mod_id(folder_name):
         return None
 
 
-def remove_legacy_mod_id_marker(folder_name):
-    """Remove the former completion marker once metadata replaces it."""
-    try:
-        os.remove(os.path.join(folder_name, ".gamebanana-mod-id"))
-    except FileNotFoundError:
-        pass
-    except OSError as error:
-        print(f"Could not remove legacy mod ID marker: {error}")
-
-
 def scan_existing_mods(path):
     existing_ids = {}
     if not os.path.isdir(path):
@@ -164,5 +154,4 @@ def scan_existing_mods(path):
             mod_id = read_mod_id(entry.path)
             if mod_id is not None:
                 existing_ids[mod_id] = entry.path
-                remove_legacy_mod_id_marker(entry.path)
     return existing_ids

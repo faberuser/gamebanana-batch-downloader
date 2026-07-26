@@ -107,19 +107,37 @@ def _output_path(
             )
         return path
 
-    if source_type == "game":
-        game_name = sanitize_filename(mods[0]["_aGame"]["_sName"])
-        path = os.path.join(DEFAULT_OUTPUT_ROOT, "mods", game_name)
-    else:
+    if source_type == "submitter":
         submitter = sanitize_filename(
             mods[0]["_aSubmitter"]["_sName"]
         )
-        path = os.path.join(
-            DEFAULT_OUTPUT_ROOT,
-            "mods",
-            "_submitters",
-            f"{submitter}_{source_id}",
-        )
+        if custom_path:
+            parent = custom_path
+            legacy_labels = (f"submitter_{source_id}",)
+        else:
+            parent = os.path.join(
+                DEFAULT_OUTPUT_ROOT, "mods", "_submitters"
+            )
+            legacy_labels = (f"{submitter}_{source_id}",)
+
+        path = os.path.join(parent, submitter)
+        if not os.path.exists(path):
+            legacy_paths = [
+                os.path.join(parent, label)
+                for label in legacy_labels
+                if os.path.isdir(os.path.join(parent, label))
+            ]
+            if len(legacy_paths) == 1:
+                os.rename(legacy_paths[0], path)
+                print(
+                    f"Renamed submitter folder: "
+                    f"{legacy_paths[0]} -> {path}"
+                )
+        return path
+
+    if source_type == "game":
+        game_name = sanitize_filename(mods[0]["_aGame"]["_sName"])
+        path = os.path.join(DEFAULT_OUTPUT_ROOT, "mods", game_name)
     if custom_path:
         return os.path.join(custom_path, f"{source_type}_{source_id}")
     return path

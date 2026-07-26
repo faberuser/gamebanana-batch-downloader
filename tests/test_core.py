@@ -9,7 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 import gamebanana.core as core
-from gamebanana import api, downloads
+from gamebanana import api, downloads, service
 
 
 class FakeResponse:
@@ -120,13 +120,35 @@ class CoreTests(unittest.TestCase):
             self.assertTrue(Path(result).is_dir())
             self.assertFalse(old_path.exists())
 
+    def test_submitter_folder_drops_id_and_migrates_old_name(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            old_path = (
+                root / "mods" / "_submitters" / "Author_123"
+            )
+            old_path.mkdir(parents=True)
+
+            with patch.object(
+                service, "DEFAULT_OUTPUT_ROOT", str(root)
+            ):
+                result = service._output_path(
+                    123,
+                    "submitter",
+                    [mod_record()],
+                    None,
+                    "{name}",
+                )
+
+            expected = old_path.with_name("Author")
+            self.assertEqual(Path(result), expected)
+            self.assertTrue(expected.is_dir())
+            self.assertFalse(old_path.exists())
+
     def test_skip_existing_avoids_per_mod_requests(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             target = root / "category_7559" / "Bart Simpson"
             target.mkdir(parents=True)
-            marker = target / ".gamebanana-mod-id"
-            marker.write_text("123", encoding="ascii")
             (target / "metadata.json").write_text(
                 json.dumps({"_mod": {"_idRow": 123}}),
                 encoding="utf-8",
@@ -161,7 +183,6 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(
                 calls[0][1]["_sSort"], "Generic_MostDownloaded"
             )
-            self.assertFalse(marker.exists())
 
     def test_download_always_writes_metadata_after_assets_succeed(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

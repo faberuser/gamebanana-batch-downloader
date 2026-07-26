@@ -39,7 +39,7 @@ python gamebanana.py --help
 
 ## Usage
 
-Download one mod:
+Download a mod:
 
 ```bash
 gamebanana https://gamebanana.com/mods/497545
@@ -51,29 +51,41 @@ Download a category:
 gamebanana https://gamebanana.com/mods/cats/7559
 ```
 
+Download all game's mods:
+
+```bash
+gamebanana https://gamebanana.com/games/6498
+```
+
+Download all submmiter's submissions:
+
+```bash
+gamebanana https://gamebanana.com/members/1661569
+```
+
 Prioritize the most downloaded mods:
 
 ```bash
-gamebanana --sort most-downloaded https://gamebanana.com/mods/cats/5299
+gamebanana --sort most-downloaded https://gamebanana.com/mods/cats/7559
 ```
 
 The `_sSort` value in a GameBanana URL is also honored:
 
 ```bash
-gamebanana "https://gamebanana.com/mods/cats/5299?_sSort=Generic_Oldest"
+gamebanana "https://gamebanana.com/mods/cats/7559?_sSort=Generic_Oldest"
 ```
 
 Resume a large category without making detail and file requests for completed
 mods:
 
 ```bash
-gamebanana --skip-existing --sort oldest https://gamebanana.com/mods/cats/5299
+gamebanana --skip-existing --sort oldest https://gamebanana.com/mods/cats/7559
 ```
 
 Save under a custom location and slow the batch rate:
 
 ```bash
-gamebanana --path "C:\Downloads" --delay 5 https://gamebanana.com/mods/cats/5299
+gamebanana --path "C:\Downloads" --delay 5 https://gamebanana.com/mods/cats/7559
 ```
 
 Run `gamebanana --help` for every option and supported sort.
@@ -117,8 +129,7 @@ mods/
 
 `metadata.json` is written only after a mod finishes successfully. With
 `--skip-existing`, its embedded mod ID lets later runs skip completed mods
-without making per-mod API calls. Obsolete `.gamebanana-mod-id` files are
-removed when their folders are encountered with valid metadata.
+without making per-mod API calls.
 
 ## Development
 
