@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gamebanana"
 version = "1.0.0"
-description = "Download and archive GameBanana mods, categories, games, and submitters"
+description = "Download and archive GameBanana mods"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "requests>=2.31,<3",
 ]
