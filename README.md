@@ -16,7 +16,7 @@ metadata.
 
 ## Requirements
 
-- Python 3
+- Python 3.9 or newer
 
 ## Installation
 

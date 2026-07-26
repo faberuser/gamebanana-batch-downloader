@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gamebanana-downloader"
+name = "gamebanana"
 version = "1.0.0"
 description = "Download and archive GameBanana mods, categories, games, and submitters"
 readme = "README.md"
@@ -20,7 +20,8 @@ classifiers = [
 ]
 
 [project.scripts]
-gamebanana = "gamebanana_downloader.cli:main"
+gamebanana = "gamebanana.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = ["gamebanana"]
+package-dir = {gamebanana = "src"}
