@@ -40,7 +40,7 @@ def category_id_from_record(category):
 
 def category_from_mod(mod):
     """Return the deepest category ID and name present in a mod record."""
-    for key in ("_aSubCategory", "_aRootCategory"):
+    for key in ("_aCategory", "_aSubCategory", "_aRootCategory"):
         category = mod.get(key)
         category_id = category_id_from_record(category)
         if category_id is not None:

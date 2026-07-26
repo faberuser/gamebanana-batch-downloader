@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
-import gamebanana_downloader.core as core
-from gamebanana_downloader import api
+import gamebanana.core as core
+from gamebanana import api
 
 
 class FakeResponse:
@@ -29,7 +29,7 @@ def mod_record(mod_id=123, name="Bart Simpson"):
         "_idRow": mod_id,
         "_sName": name,
         "_aGame": {"_sName": "Super Smash Bros. Ultimate"},
-        "_aSubCategory": {
+        "_aCategory": {
             "_sName": "Ness",
             "_sProfileUrl": "https://gamebanana.com/mods/cats/7559",
         },

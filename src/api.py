@@ -62,7 +62,7 @@ def detect_source_type(input_str):
 def get_category_name(category_id, mod_record=None):
     """Return a category name from an index record or the API."""
     if mod_record:
-        for key in ("_aSubCategory", "_aRootCategory"):
+        for key in ("_aCategory", "_aSubCategory", "_aRootCategory"):
             category = mod_record.get(key)
             if category_id_from_record(category) == category_id:
                 return category.get("_sName")

@@ -30,7 +30,7 @@ MOD_INDEX_PROPERTIES = [
     "_aSubmitter",
     "_aGame",
     "_aRootCategory",
-    "_aSubCategory",
+    "_aCategory",
 ]
 
 MOD_ID_MARKER = ".gamebanana-mod-id"
