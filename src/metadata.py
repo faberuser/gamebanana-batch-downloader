@@ -4,7 +4,7 @@ import json
 import os
 
 from . import api
-from .paths import apply_timestamp
+from .paths import apply_timestamp, remove_legacy_mod_id_marker
 
 
 METADATA_PROPERTIES = [
@@ -42,8 +42,18 @@ def write_mod_metadata(
         "_comments": api.get_posts_with_replies(mod_id),
     }
     metadata_path = os.path.join(folder_name, "metadata.json")
-    with open(metadata_path, "w", encoding="utf-8") as metadata_file:
-        json.dump(metadata, metadata_file, ensure_ascii=False, indent=2)
+    temporary_path = metadata_path + ".part"
+    try:
+        with open(temporary_path, "w", encoding="utf-8") as metadata_file:
+            json.dump(metadata, metadata_file, ensure_ascii=False, indent=2)
+        os.replace(temporary_path, metadata_path)
+    except Exception:
+        try:
+            os.remove(temporary_path)
+        except OSError:
+            pass
+        raise
+    remove_legacy_mod_id_marker(folder_name)
     if preserve_time:
         timestamp = mod.get("_tsDateModified") or mod.get("_tsDateAdded")
         apply_timestamp(metadata_path, timestamp)

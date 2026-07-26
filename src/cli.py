@@ -23,16 +23,6 @@ def build_parser():
     )
     parser.add_argument("--path", help="Custom path to save mods")
     parser.add_argument(
-        "--metadata",
-        action="store_true",
-        help="Download mod metadata (details, comments, replies)",
-    )
-    parser.add_argument(
-        "--no-preserve-time",
-        action="store_true",
-        help="Do not preserve files' original server modified time",
-    )
-    parser.add_argument(
         "--sort",
         choices=list(SORT_ALIASES) + ["featured"],
         help="Download priority/order (category URL _sSort is also honored)",
@@ -94,7 +84,6 @@ def main(argv=None):
         args = parser.parse_args(argv)
 
     state.failed.clear()
-    preserve_time = not args.no_preserve_time
 
     for source in args.source:
         source_type, source_id, url_sort = api.detect_source_type(source)
@@ -109,11 +98,9 @@ def main(argv=None):
         if source_type == "mod":
             service.parse_single_mod(
                 source_id,
-                args.path,
-                args.metadata,
-                preserve_time,
-                args.skip_existing,
-                args.category_folder_format,
+                custom_path=args.path,
+                skip_existing=args.skip_existing,
+                category_folder_format=args.category_folder_format,
             )
         else:
             selected_sort = args.sort or url_sort
@@ -121,14 +108,12 @@ def main(argv=None):
                 print(f"Sort: {selected_sort}")
             service.parse_mods(
                 source_id,
-                source_type,
-                args.path,
-                args.metadata,
-                preserve_time,
-                selected_sort,
-                args.skip_existing,
-                args.delay,
-                args.category_folder_format,
+                source_type=source_type,
+                custom_path=args.path,
+                sort=selected_sort,
+                skip_existing=args.skip_existing,
+                delay=args.delay,
+                category_folder_format=args.category_folder_format,
             )
 
     output_root = os.path.abspath(args.path or os.getcwd())

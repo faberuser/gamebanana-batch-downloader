@@ -13,6 +13,8 @@ class CliTests(unittest.TestCase):
         args = build_parser().parse_args(["7559"])
 
         self.assertEqual(args.category_folder_format, "{name}")
+        self.assertFalse(hasattr(args, "metadata"))
+        self.assertFalse(hasattr(args, "no_preserve_time"))
 
     def test_cli_parses_resume_and_sort_options(self):
         args = build_parser().parse_args([

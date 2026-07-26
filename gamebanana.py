@@ -1,11 +1,12 @@
-"""Compatibility entry point for users of the original single-file script."""
+"""Portable entry point and source-tree package shim."""
 
 import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+# When this file is imported from the repository root, expose ``src`` as the
+# package path instead of shadowing the installed ``gamebanana`` package.
+__path__ = [os.path.join(os.path.dirname(__file__), "src")]
 
-from gamebanana_downloader.cli import main
+from gamebanana.cli import main
 
 
 if __name__ == "__main__":

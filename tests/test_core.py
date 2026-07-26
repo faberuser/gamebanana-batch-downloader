@@ -1,4 +1,5 @@
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,7 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 import gamebanana.core as core
-from gamebanana import api
+from gamebanana import api, downloads
 
 
 class FakeResponse:
@@ -124,7 +125,12 @@ class CoreTests(unittest.TestCase):
             root = Path(temporary_directory)
             target = root / "category_7559" / "Bart Simpson"
             target.mkdir(parents=True)
-            core.write_mod_id_marker(str(target), 123)
+            marker = target / ".gamebanana-mod-id"
+            marker.write_text("123", encoding="ascii")
+            (target / "metadata.json").write_text(
+                json.dumps({"_mod": {"_idRow": 123}}),
+                encoding="utf-8",
+            )
             calls = []
 
             class FakeSession:
@@ -155,6 +161,52 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(
                 calls[0][1]["_sSort"], "Generic_MostDownloaded"
             )
+            self.assertFalse(marker.exists())
+
+    def test_download_always_writes_metadata_after_assets_succeed(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            with (
+                patch.object(api, "get_files", return_value=[]),
+                patch.object(
+                    downloads.metadata, "write_mod_metadata"
+                ) as write_metadata,
+            ):
+                result = downloads.download_mod(
+                    mod_record(),
+                    temporary_directory,
+                    7559,
+                    preserve_time=False,
+                )
+
+            self.assertIsNotNone(result)
+            write_metadata.assert_called_once()
+
+    def test_failed_asset_does_not_create_completion_metadata(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            with (
+                patch.object(
+                    api,
+                    "get_files",
+                    return_value=[{
+                        "name": "mod.zip",
+                        "url": "https://example.com/mod.zip",
+                        "ts": None,
+                    }],
+                ),
+                patch.object(downloads, "download_file", return_value="failed"),
+                patch.object(
+                    downloads.metadata, "write_mod_metadata"
+                ) as write_metadata,
+            ):
+                result = downloads.download_mod(
+                    mod_record(),
+                    temporary_directory,
+                    7559,
+                    preserve_time=False,
+                )
+
+            self.assertIsNone(result)
+            write_metadata.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -1,15 +1,14 @@
 # GameBanana Downloader
 
 A command-line archiver for GameBanana mods. It can download one mod or batch
-download a category, game, or submitter, including preview images and optional
-metadata.
+download a category, game, or submitter, including preview images and metadata.
 
 ## Features
 
 - Individual, category, game, and submitter batch downloads
 - GameBanana sorting such as newest, oldest, most liked, and most downloaded
 - Resume support that skips completed mods before requesting their details
-- Optional metadata, comments, and replies
+- Metadata, comments, and replies for every mod
 - Original server timestamps when available
 - Safe handling of duplicate mod names
 - Configurable category folders' name
@@ -46,10 +45,10 @@ Download one mod:
 gamebanana https://gamebanana.com/mods/497545
 ```
 
-Download a category with metadata:
+Download a category:
 
 ```bash
-gamebanana --metadata https://gamebanana.com/mods/cats/7559
+gamebanana https://gamebanana.com/mods/cats/7559
 ```
 
 Prioritize the most downloaded mods:
@@ -111,16 +110,15 @@ mods/
 └── Super Smash Bros. Ultimate/
     └── Ness/
         └── Mod Name/
-            ├── .gamebanana-mod-id
             ├── metadata.json
             ├── preview.png
             └── mod-file.zip
 ```
 
-The ID marker is written only after a mod finishes successfully. With
-`--skip-existing`, it lets later runs skip completed mods without making
-per-mod API calls. Older folders are recognized by name and receive a marker
-during the first resumed run.
+`metadata.json` is written only after a mod finishes successfully. With
+`--skip-existing`, its embedded mod ID lets later runs skip completed mods
+without making per-mod API calls. Obsolete `.gamebanana-mod-id` files are
+removed when their folders are encountered with valid metadata.
 
 ## Development
 

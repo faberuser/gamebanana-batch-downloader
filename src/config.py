@@ -33,7 +33,6 @@ MOD_INDEX_PROPERTIES = [
     "_aCategory",
 ]
 
-MOD_ID_MARKER = ".gamebanana-mod-id"
 DEFAULT_CATEGORY_FOLDER_FORMAT = "{name}"
 CATEGORY_FOLDER_FORMAT_EXAMPLES = (
     "{name}",

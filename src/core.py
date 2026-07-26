@@ -16,7 +16,6 @@ from .config import (
     CATEGORY_FOLDER_FORMAT_EXAMPLES,
     DEFAULT_CATEGORY_FOLDER_FORMAT,
     DEFAULT_OUTPUT_ROOT as script_path,
-    MOD_ID_MARKER,
     MOD_INDEX_PROPERTIES,
     SORT_ALIASES,
 )
@@ -32,7 +31,6 @@ from .paths import (
     read_mod_id,
     sanitize_filename,
     scan_existing_mods,
-    write_mod_id_marker,
 )
 from .service import parse_mods, parse_single_mod
 from .state import failed
@@ -41,7 +39,6 @@ from .state import failed
 __all__ = [
     "CATEGORY_FOLDER_FORMAT_EXAMPLES",
     "DEFAULT_CATEGORY_FOLDER_FORMAT",
-    "MOD_ID_MARKER",
     "MOD_INDEX_PROPERTIES",
     "SORT_ALIASES",
     "apply_timestamp",
@@ -67,6 +64,5 @@ __all__ = [
     "scan_existing_mods",
     "script_path",
     "session",
-    "write_mod_id_marker",
     "write_mod_metadata",
 ]

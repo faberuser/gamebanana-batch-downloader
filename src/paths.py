@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from .config import (
     CATEGORY_FOLDER_FORMAT_EXAMPLES,
     DEFAULT_CATEGORY_FOLDER_FORMAT,
-    MOD_ID_MARKER,
 )
 
 
@@ -129,13 +128,6 @@ def category_path(
 
 
 def read_mod_id(folder_name):
-    marker_path = os.path.join(folder_name, MOD_ID_MARKER)
-    try:
-        with open(marker_path, "r", encoding="ascii") as marker:
-            return int(marker.read().strip())
-    except (OSError, ValueError):
-        pass
-
     try:
         with open(
             os.path.join(folder_name, "metadata.json"),
@@ -153,6 +145,16 @@ def read_mod_id(folder_name):
         return None
 
 
+def remove_legacy_mod_id_marker(folder_name):
+    """Remove the former completion marker once metadata replaces it."""
+    try:
+        os.remove(os.path.join(folder_name, ".gamebanana-mod-id"))
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        print(f"Could not remove legacy mod ID marker: {error}")
+
+
 def scan_existing_mods(path):
     existing_ids = {}
     if not os.path.isdir(path):
@@ -162,10 +164,5 @@ def scan_existing_mods(path):
             mod_id = read_mod_id(entry.path)
             if mod_id is not None:
                 existing_ids[mod_id] = entry.path
+                remove_legacy_mod_id_marker(entry.path)
     return existing_ids
-
-
-def write_mod_id_marker(folder_name, mod_id):
-    marker_path = os.path.join(folder_name, MOD_ID_MARKER)
-    with open(marker_path, "w", encoding="ascii") as marker:
-        marker.write(str(mod_id))

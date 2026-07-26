@@ -17,14 +17,12 @@ from .paths import (
     migrate_category_path,
     sanitize_filename,
     scan_existing_mods,
-    write_mod_id_marker,
 )
 
 
 def parse_single_mod(
     mod_id,
     custom_path=None,
-    download_metadata=False,
     preserve_time=True,
     skip_existing=False,
     category_folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
@@ -60,8 +58,7 @@ def parse_single_mod(
         mod,
         path,
         category_id or mod_id,
-        download_metadata,
-        preserve_time,
+        preserve_time=preserve_time,
         used_folders=set(existing_ids.values()),
         existing_folder=existing_ids.get(mod_id),
     )
@@ -154,7 +151,6 @@ def parse_mods(
     source_id,
     source_type="category",
     custom_path=None,
-    download_metadata=False,
     preserve_time=True,
     sort=None,
     skip_existing=False,
@@ -186,13 +182,9 @@ def parse_mods(
 
     existing_ids = scan_existing_mods(path)
     used_folders = set(existing_ids.values())
-    legacy_skips = set()
 
     def process_mod(mod, current):
         mod_id = mod["_idRow"]
-        legacy_folder = os.path.join(
-            path, sanitize_filename(mod["_sName"])
-        )
         print(f"\n----- {mod['_sName']} ({current}/{mod_count}) ------")
         if skip_existing and mod_id in existing_ids:
             print(
@@ -200,28 +192,12 @@ def parse_mods(
                 f"{existing_ids[mod_id]}"
             )
             return
-        if (
-            skip_existing
-            and os.path.isdir(legacy_folder)
-            and legacy_folder not in legacy_skips
-        ):
-            print(f"Skipping legacy existing folder: {legacy_folder}")
-            legacy_skips.add(legacy_folder)
-            try:
-                write_mod_id_marker(legacy_folder, mod_id)
-                existing_ids[mod_id] = legacy_folder
-                used_folders.add(legacy_folder)
-            except OSError as error:
-                print(f"Could not add resume marker: {error}")
-            return
-
         completed_folder = download_mod(
             mod,
             path,
             source_id,
-            download_metadata,
-            preserve_time,
-            used_folders,
+            preserve_time=preserve_time,
+            used_folders=used_folders,
             existing_folder=existing_ids.get(mod_id),
         )
         if completed_folder:

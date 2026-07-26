@@ -8,7 +8,6 @@ from . import api, metadata, state
 from .paths import (
     apply_timestamp,
     sanitize_filename,
-    write_mod_id_marker,
 )
 
 
@@ -132,7 +131,6 @@ def download_mod(
     mod,
     path,
     source_id,
-    download_metadata=False,
     preserve_time=True,
     used_folders=None,
     existing_folder=None,
@@ -142,21 +140,6 @@ def download_mod(
         path, mod_name, used_folders, existing_folder
     )
     os.makedirs(folder_name, exist_ok=True)
-
-    metadata_failed = False
-    if download_metadata:
-        try:
-            print("Writing metadata.json")
-            metadata.write_mod_metadata(
-                mod["_idRow"],
-                folder_name,
-                source_id,
-                mod_index_record=mod,
-                preserve_time=preserve_time,
-            )
-        except Exception as error:
-            print(f"Failed to write metadata for {mod_name}: {error}")
-            metadata_failed = True
 
     fallback_timestamp = (
         mod.get("_tsDateModified") or mod.get("_tsDateAdded")
@@ -184,6 +167,21 @@ def download_mod(
         if status == "failed":
             file_failures.append(file_record["name"])
 
+    metadata_failed = False
+    if not image_failures and not file_failures:
+        try:
+            print("Writing metadata.json")
+            metadata.write_mod_metadata(
+                mod["_idRow"],
+                folder_name,
+                source_id,
+                mod_index_record=mod,
+                preserve_time=preserve_time,
+            )
+        except Exception as error:
+            print(f"Failed to write metadata for {mod_name}: {error}")
+            metadata_failed = True
+
     if metadata_failed or image_failures or file_failures:
         state.failed.append(
             (
@@ -195,5 +193,4 @@ def download_mod(
         )
         return None
 
-    write_mod_id_marker(folder_name, mod["_idRow"])
     return folder_name
