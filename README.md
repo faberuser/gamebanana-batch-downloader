@@ -12,6 +12,7 @@ download a category, game, or submitter, including preview images and metadata.
 - Original server timestamps when available
 - Safe handling of duplicate mod names
 - Configurable category folders' name
+- Category folders preserve the full GameBanana parent/subcategory hierarchy
 
 ## Requirements
 
@@ -113,6 +114,17 @@ When changing formats, a single folder matching one of the layouts above is
 renamed automatically. If multiple matching folders already exist, they are
 left untouched to avoid merging data unexpectedly.
 
+The format applies to every level of the category hierarchy. For example,
+category 6090 is saved under `Super Smash Bros. Ultimate/Stages/Other-Misc`,
+while category 3319 uses `Super Smash Bros. Ultimate/Other-Misc`. Deeper
+subcategories preserve all intermediate folders. With `--path`, the category
+hierarchy is placed directly inside the chosen directory.
+
+Existing flat subcategory folders are left in place, since their contents may
+mix unrelated categories. Move previously downloaded mods into their correct
+category folders to reuse them with `--skip-existing`. If the category page's
+hierarchy cannot be read, the download stops instead of using a flat path.
+
 ## Output
 
 By default, downloads are written below the current directory:
@@ -120,11 +132,12 @@ By default, downloads are written below the current directory:
 ```text
 mods/
 └── Super Smash Bros. Ultimate/
-    └── Ness/
-        └── Mod Name/
-            ├── metadata.json
-            ├── preview.png
-            └── mod-file.zip
+    └── Skins/
+        └── Ness/
+            └── Mod Name/
+                ├── metadata.json
+                ├── preview.png
+                └── mod-file.zip
 ```
 
 `metadata.json` is written only after a mod finishes successfully. With

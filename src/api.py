@@ -1,5 +1,7 @@
 """GameBanana HTTP API access."""
 
+import json
+from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -9,6 +11,68 @@ from .paths import category_id_from_record
 
 
 session = requests.Session()
+
+
+class _BreadcrumbParser(HTMLParser):
+    """Extract GameBanana's structured breadcrumb without extra dependencies."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_breadcrumb = False
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script":
+            self.in_breadcrumb = (
+                dict(attrs).get("id") == "StructuredDataBreadcrumb"
+            )
+
+    def handle_endtag(self, tag):
+        if tag == "script":
+            self.in_breadcrumb = False
+
+    def handle_data(self, data):
+        if self.in_breadcrumb:
+            self.parts.append(data)
+
+
+def get_category_hierarchy(category_id):
+    """Return (ID, name) pairs from the root category to the selected category.
+
+    Category API records do not expose parents. The category page's JSON-LD
+    breadcrumb includes every ancestor, including intermediate subcategories.
+    Refuse incomplete breadcrumbs rather than silently creating a flat folder.
+    """
+    response = session.get(
+        f"https://gamebanana.com/mods/cats/{category_id}", timeout=30
+    )
+    response.raise_for_status()
+    parser = _BreadcrumbParser()
+    parser.feed(response.text)
+    try:
+        breadcrumb = json.loads("".join(parser.parts))
+        hierarchy = []
+        for entry in sorted(
+            breadcrumb["itemListElement"], key=lambda entry: entry["position"]
+        ):
+            item = entry["item"]
+            path = urlparse(item["@id"]).path.rstrip("/").split("/")
+            if len(path) == 4 and path[1:3] == ["mods", "cats"]:
+                name = item["name"]
+                if not isinstance(name, str) or not name.strip():
+                    raise ValueError("Missing category name")
+                hierarchy.append((int(path[-1]), name))
+        if (
+            not hierarchy
+            or hierarchy[-1][0] != category_id
+            or len({item[0] for item in hierarchy}) != len(hierarchy)
+        ):
+            raise ValueError("Incomplete category breadcrumb")
+    except (ValueError, KeyError, TypeError) as error:
+        raise RuntimeError(
+            f"Could not resolve category hierarchy for {category_id}"
+        ) from error
+    return hierarchy
 
 
 def detect_source_type(input_str):

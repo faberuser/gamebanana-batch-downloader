@@ -13,8 +13,8 @@ from .config import (
 from .downloads import download_mod
 from .paths import (
     category_from_mod,
+    category_hierarchy_path,
     category_path,
-    migrate_category_path,
     sanitize_filename,
     scan_existing_mods,
 )
@@ -39,6 +39,7 @@ def parse_single_mod(
             category_id,
             category_name,
             category_folder_format,
+            hierarchy=api.get_category_hierarchy(category_id),
         )
     else:
         path = os.path.join(
@@ -89,23 +90,14 @@ def _output_path(
 ):
     if source_type == "category":
         game_name = sanitize_filename(mods[0]["_aGame"]["_sName"])
-        category_name = api.get_category_name(source_id, mods[0])
-        path = category_path(
-            DEFAULT_OUTPUT_ROOT,
-            game_name,
-            source_id,
-            category_name,
-            category_folder_format,
+        hierarchy = api.get_category_hierarchy(source_id)
+        parent = custom_path or os.path.join(
+            DEFAULT_OUTPUT_ROOT, "mods", game_name
         )
-        if custom_path:
-            path = migrate_category_path(
-                custom_path,
-                source_id,
-                category_name,
-                category_folder_format,
-                extra_legacy_labels=(f"category_{source_id}",),
-            )
-        return path
+        return category_hierarchy_path(
+            parent, hierarchy, category_folder_format,
+            extra_legacy_labels=(f"category_{source_id}",) if custom_path else (),
+        )
 
     if source_type == "submitter":
         submitter = sanitize_filename(
