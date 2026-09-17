@@ -206,8 +206,11 @@ class SectionTests(unittest.TestCase):
         with patch.object(api.session, "get", return_value=page):
             self.assertEqual(api.request_all_records("https://gamebanana.com/apiv11/Tutorial/123/Posts"), [{"_idRow": 90}])
         page._content = b'<html>Error</html>'
-        with patch.object(api.session, "get", return_value=page):
-            with self.assertRaises(requests.exceptions.JSONDecodeError):
+        with (
+            patch.object(api.session, "get", return_value=page),
+            patch.object(api.time, "sleep"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "invalid JSON.*Tutorial/123/Posts"):
                 api.request_all_records("https://gamebanana.com/apiv11/Tutorial/123/Posts")
 
 

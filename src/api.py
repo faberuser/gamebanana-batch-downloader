@@ -1,6 +1,7 @@
 """GameBanana HTTP API access."""
 
 import json
+import time
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlparse
 
@@ -11,6 +12,42 @@ from .paths import category_id_from_record
 
 
 session = requests.Session()
+
+
+def _decode_json(response):
+    """Accept JSON preceded by GameBanana's plain-text PHP warnings only."""
+    try:
+        return response.json()
+    except requests.exceptions.JSONDecodeError:
+        prefix, separator, payload = response.text.partition("{")
+        warnings = [line for line in prefix.splitlines() if line.strip()]
+        if not separator or not warnings or not all(
+            line.startswith("Warning: ") for line in warnings
+        ):
+            raise
+        return json.loads(separator + payload)
+
+
+def _get_json(url, params=None, timeout=30):
+    """Retry intermittent non-JSON responses without accepting partial data."""
+    for attempt in range(3):
+        response = session.get(url, params=params, timeout=timeout)
+        response.raise_for_status()
+        try:
+            data = _decode_json(response)
+        except (requests.exceptions.JSONDecodeError, json.JSONDecodeError) as error:
+            if attempt == 2:
+                raise RuntimeError(
+                    f"GameBanana returned invalid JSON from {url} "
+                    f"after 3 attempts (HTTP {response.status_code})"
+                ) from error
+            time.sleep(attempt + 1)
+            continue
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Expected a JSON object from {url}")
+        if data.get("_sErrorCode"):
+            raise RuntimeError(f"GameBanana API error from {url}: {data}")
+        return data
 
 
 def content_model(section):
@@ -137,7 +174,7 @@ def detect_source(input_str):
             )
             if (
                 response.status_code == 200
-                and response.json().get("_idRow") == id_value
+                and _decode_json(response).get("_idRow") == id_value
             ):
                 return source_type, id_value, None, "mods"
         except Exception:
@@ -161,7 +198,7 @@ def get_category_name(category_id, mod_record=None):
                 timeout=15,
             )
             if response.status_code == 200:
-                name = response.json().get("_sName")
+                name = _decode_json(response).get("_sName")
                 if name:
                     return name
         except Exception:
@@ -173,46 +210,40 @@ def get_files(mod_id, section="mods"):
     model = content_model(section)
     if section not in FILE_SECTIONS:
         return []
-    response = session.get(
+    data = _get_json(
         f"https://gamebanana.com/apiv11/{model}/{mod_id}",
         params={"_csvProperties": "_aFiles"},
         timeout=30,
     )
-    response.raise_for_status()
     return [
         {
             "name": file_record["_sFile"],
             "url": file_record["_sDownloadUrl"],
             "ts": file_record.get("_tsDateAdded"),
         }
-        for file_record in response.json()["_aFiles"]
+        for file_record in data["_aFiles"]
     ]
 
 
 def get_mod_record(mod_id, section="mods"):
     if section != "mods":
         return get_mod_metadata(mod_id, (), section=section)
-    response = session.get(
+    data = _get_json(
         f"https://gamebanana.com/apiv11/Mod/{mod_id}",
         params={"_csvProperties": ",".join(MOD_INDEX_PROPERTIES)},
         timeout=30,
     )
-    response.raise_for_status()
-    mod = response.json()
-    if mod.get("_sErrorCode"):
-        raise RuntimeError(mod)
-    return mod
+    return data
 
 
 def get_mod_index(params, section="mods"):
     model = content_model(section)
-    response = session.get(
+    data = _get_json(
         f"https://gamebanana.com/apiv11/{model}/Index",
         params=params,
         timeout=30,
     )
-    response.raise_for_status()
-    return response.json()
+    return data
 
 
 def get_mod_metadata(mod_id, properties, section="mods"):
@@ -220,42 +251,24 @@ def get_mod_metadata(mod_id, properties, section="mods"):
     # Other models have different property sets (e.g. Script has _sRawCode
     # but no _aFiles). ProfilePage returns the fields supported by that model.
     suffix = "" if section == "mods" else "/ProfilePage"
-    response = session.get(
+    data = _get_json(
         f"https://gamebanana.com/apiv11/{model}/{mod_id}{suffix}",
         params={"_csvProperties": ",".join(properties)} if not suffix else None,
         timeout=30,
     )
-    response.raise_for_status()
-    mod = response.json()
-    if mod.get("_sErrorCode"):
-        raise RuntimeError(mod)
-    return mod
+    return data
 
 
 def request_all_records(url):
     page = 1
     records = []
     while True:
-        response = session.get(
+        data = _get_json(
             url,
             params={"_nPage": page, "_nPerpage": 50},
             timeout=30,
         )
-        response.raise_for_status()
-        try:
-            data = response.json()
-        except requests.exceptions.JSONDecodeError:
-            # Some Posts responses contain plain-text PHP warnings followed
-            # by otherwise valid JSON. Accept only that known prefix; login
-            # pages, HTML errors, and truncated JSON must still fail.
-            prefix, separator, payload = response.text.partition("{")
-            warnings = [line for line in prefix.splitlines() if line.strip()]
-            if not separator or not warnings or not all(
-                line.startswith("Warning: ") for line in warnings
-            ):
-                raise
-            data = json.loads(separator + payload)
-        page_records = data.get("_aRecords", [])
+        page_records = data["_aRecords"]
         records.extend(page_records)
         metadata = data.get("_aMetadata", {})
         if metadata.get("_bIsComplete", True) or not page_records:
