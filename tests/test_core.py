@@ -44,6 +44,58 @@ def mod_record(mod_id=123, name="Bart Simpson"):
 
 
 class CoreTests(unittest.TestCase):
+    def test_filename_sanitizer_removes_windows_trailing_characters(self):
+        cases = {
+            "Call of Duty 2 ": "Call of Duty 2",
+            "Call of Duty 2. . ": "Call of Duty 2",
+            "Colt .45": "Colt .45",
+            "Other/Misc ": "Other-Misc",
+            "": "_",
+            " . . ": "_",
+            ".": "_",
+            "..": "_",
+        }
+        for name, expected in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(core.sanitize_filename(name), expected)
+
+    def test_game_and_category_with_trailing_space_download_and_resume(self):
+        for source_type, source_id in (("game", 30), ("category", 8528)):
+            with self.subTest(source_type=source_type):
+                with tempfile.TemporaryDirectory() as root:
+                    mod = mod_record()
+                    mod["_aGame"]["_sName"] = "Call of Duty 2 "
+                    expected = Path(root) / "mods" / "Call of Duty 2"
+                    if source_type == "category":
+                        expected /= "Colt .45"
+                    with (
+                        patch.object(service, "DEFAULT_OUTPUT_ROOT", root),
+                        patch.object(api, "get_mod_index", return_value={
+                            "_aMetadata": {"_nRecordCount": 1},
+                            "_aRecords": [mod],
+                        }),
+                        patch.object(api, "get_category_hierarchy", return_value=[
+                            (8528, "Colt .45"),
+                        ]),
+                        patch.object(service, "download_mod", return_value=None) as download,
+                    ):
+                        service.parse_mods(
+                            source_id, source_type, skip_existing=True, delay=0
+                        )
+                        self.assertEqual(Path(download.call_args.args[1]), expected)
+                        self.assertTrue(expected.is_dir())
+                        completed = expected / "Completed mod"
+                        completed.mkdir()
+                        (completed / "metadata.json").write_text(
+                            json.dumps({"_mod": {"_idRow": 123}}),
+                            encoding="utf-8",
+                        )
+                        download.reset_mock()
+                        service.parse_mods(
+                            source_id, source_type, skip_existing=True, delay=0
+                        )
+                        download.assert_not_called()
+
     def test_detects_category_sort_without_network(self):
         result = core.detect_source_type(
             "https://gamebanana.com/mods/cats/5299"

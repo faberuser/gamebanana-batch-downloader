@@ -12,9 +12,13 @@ from .config import (
 
 
 def sanitize_filename(name):
+    """Normalize a filename component before creating or looking it up."""
     for character in '\\/|:*?"<>':
         name = name.replace(character, "-")
-    return name
+    # Windows strips trailing spaces and periods during directory creation.
+    # Use that same name for subsequent scans, downloads, and resume checks.
+    # Keep empty/dot-only names from resolving to the parent directory.
+    return name.rstrip(" .") or "_"
 
 
 def apply_timestamp(path, timestamp):
