@@ -6,11 +6,18 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
-from .config import MOD_INDEX_PROPERTIES
+from .config import CONTENT_MODELS, FILE_SECTIONS, MOD_INDEX_PROPERTIES
 from .paths import category_id_from_record
 
 
 session = requests.Session()
+
+
+def content_model(section):
+    try:
+        return CONTENT_MODELS[section]
+    except KeyError as error:
+        raise ValueError(f"Unsupported GameBanana section: {section}") from error
 
 
 class _BreadcrumbParser(HTMLParser):
@@ -36,15 +43,16 @@ class _BreadcrumbParser(HTMLParser):
             self.parts.append(data)
 
 
-def get_category_hierarchy(category_id):
+def get_category_hierarchy(category_id, section="mods"):
     """Return (ID, name) pairs from the root category to the selected category.
 
     Category API records do not expose parents. The category page's JSON-LD
     breadcrumb includes every ancestor, including intermediate subcategories.
     Refuse incomplete breadcrumbs rather than silently creating a flat folder.
     """
+    content_model(section)
     response = session.get(
-        f"https://gamebanana.com/mods/cats/{category_id}", timeout=30
+        f"https://gamebanana.com/{section}/cats/{category_id}", timeout=30
     )
     response.raise_for_status()
     parser = _BreadcrumbParser()
@@ -57,7 +65,7 @@ def get_category_hierarchy(category_id):
         ):
             item = entry["item"]
             path = urlparse(item["@id"]).path.rstrip("/").split("/")
-            if len(path) == 4 and path[1:3] == ["mods", "cats"]:
+            if len(path) == 4 and path[1:3] == [section, "cats"]:
                 name = item["name"]
                 if not isinstance(name, str) or not name.strip():
                     raise ValueError("Missing category name")
@@ -76,31 +84,45 @@ def get_category_hierarchy(category_id):
 
 
 def detect_source_type(input_str):
-    """Detect the input type and ID, plus any sort found in its URL."""
+    """Compatibility helper for callers that only handle Mod submissions."""
+    source_type, source_id, url_sort, section = detect_source(input_str)
+    if section != "mods":
+        raise ValueError("Use detect_source to retain non-Mod content sections")
+    return source_type, source_id, url_sort
+
+
+def detect_source(input_str):
+    """Return scope, ID, URL sort, and content section without losing identity."""
     if not input_str.isdigit():
         parsed = urlparse(input_str)
-        path_parts = parsed.path.rstrip("/").split("/")
+        if parsed.scheme not in {"http", "https"} or parsed.hostname not in {
+            "gamebanana.com", "www.gamebanana.com",
+        }:
+            raise ValueError(f"Expected a GameBanana URL: {input_str}")
+        path_parts = parsed.path.strip("/").split("/")
         if not path_parts[-1].isdigit():
             response = session.get(
                 input_str, timeout=30, allow_redirects=True
             )
             response.raise_for_status()
             parsed = urlparse(response.url)
-            path_parts = parsed.path.rstrip("/").split("/")
+            if parsed.hostname not in {"gamebanana.com", "www.gamebanana.com"}:
+                raise ValueError(f"Not a GameBanana URL: {parsed.geturl()}")
+            path_parts = parsed.path.strip("/").split("/")
         url_sort = parse_qs(parsed.query).get("_sSort", [None])[0]
-
-        if "members" in path_parts:
-            return "submitter", int(path_parts[-1]), url_sort
-        if "games" in path_parts:
-            return "game", int(path_parts[-1]), url_sort
-        if "mods" in path_parts and "cats" not in path_parts:
-            return "mod", int(path_parts[-1]), url_sort
-        try:
-            return "category", int(path_parts[-1]), url_sort
-        except ValueError as error:
-            raise ValueError(
-                f"Could not extract ID from URL: {parsed.geturl()}"
-            ) from error
+        if path_parts[-1].isdigit():
+            source_id = int(path_parts[-1])
+            if len(path_parts) == 2 and path_parts[0] in {"members", "games"}:
+                scope = "submitter" if path_parts[0] == "members" else "game"
+                return scope, source_id, url_sort, "mods"
+            section = path_parts[0]
+            if section in CONTENT_MODELS:
+                if len(path_parts) == 2:
+                    return "mod", source_id, url_sort, section
+                if len(path_parts) == 3 and path_parts[1] in {"cats", "games"}:
+                    scope = "category" if path_parts[1] == "cats" else "game"
+                    return scope, source_id, url_sort, section
+        raise ValueError(f"Unsupported GameBanana URL: {parsed.geturl()}")
 
     id_value = int(input_str)
     for model, source_type in (
@@ -117,10 +139,10 @@ def detect_source_type(input_str):
                 response.status_code == 200
                 and response.json().get("_idRow") == id_value
             ):
-                return source_type, id_value, None
+                return source_type, id_value, None, "mods"
         except Exception:
             pass
-    return "category", id_value, None
+    return "category", id_value, None, "mods"
 
 
 def get_category_name(category_id, mod_record=None):
@@ -147,9 +169,12 @@ def get_category_name(category_id, mod_record=None):
     return None
 
 
-def get_files(mod_id):
+def get_files(mod_id, section="mods"):
+    model = content_model(section)
+    if section not in FILE_SECTIONS:
+        return []
     response = session.get(
-        f"https://gamebanana.com/apiv11/Mod/{mod_id}",
+        f"https://gamebanana.com/apiv11/{model}/{mod_id}",
         params={"_csvProperties": "_aFiles"},
         timeout=30,
     )
@@ -164,7 +189,9 @@ def get_files(mod_id):
     ]
 
 
-def get_mod_record(mod_id):
+def get_mod_record(mod_id, section="mods"):
+    if section != "mods":
+        return get_mod_metadata(mod_id, (), section=section)
     response = session.get(
         f"https://gamebanana.com/apiv11/Mod/{mod_id}",
         params={"_csvProperties": ",".join(MOD_INDEX_PROPERTIES)},
@@ -177,9 +204,10 @@ def get_mod_record(mod_id):
     return mod
 
 
-def get_mod_index(params):
+def get_mod_index(params, section="mods"):
+    model = content_model(section)
     response = session.get(
-        "https://gamebanana.com/apiv11/Mod/Index",
+        f"https://gamebanana.com/apiv11/{model}/Index",
         params=params,
         timeout=30,
     )
@@ -187,10 +215,14 @@ def get_mod_index(params):
     return response.json()
 
 
-def get_mod_metadata(mod_id, properties):
+def get_mod_metadata(mod_id, properties, section="mods"):
+    model = content_model(section)
+    # Other models have different property sets (e.g. Script has _sRawCode
+    # but no _aFiles). ProfilePage returns the fields supported by that model.
+    suffix = "" if section == "mods" else "/ProfilePage"
     response = session.get(
-        f"https://gamebanana.com/apiv11/Mod/{mod_id}",
-        params={"_csvProperties": ",".join(properties)},
+        f"https://gamebanana.com/apiv11/{model}/{mod_id}{suffix}",
+        params={"_csvProperties": ",".join(properties)} if not suffix else None,
         timeout=30,
     )
     response.raise_for_status()
@@ -210,7 +242,19 @@ def request_all_records(url):
             timeout=30,
         )
         response.raise_for_status()
-        data = response.json()
+        try:
+            data = response.json()
+        except requests.exceptions.JSONDecodeError:
+            # Some Posts responses contain plain-text PHP warnings followed
+            # by otherwise valid JSON. Accept only that known prefix; login
+            # pages, HTML errors, and truncated JSON must still fail.
+            prefix, separator, payload = response.text.partition("{")
+            warnings = [line for line in prefix.splitlines() if line.strip()]
+            if not separator or not warnings or not all(
+                line.startswith("Warning: ") for line in warnings
+            ):
+                raise
+            data = json.loads(separator + payload)
         page_records = data.get("_aRecords", [])
         records.extend(page_records)
         metadata = data.get("_aMetadata", {})
@@ -219,9 +263,10 @@ def request_all_records(url):
         page += 1
 
 
-def get_posts_with_replies(mod_id):
+def get_posts_with_replies(mod_id, section="mods"):
+    model = content_model(section)
     posts = request_all_records(
-        f"https://gamebanana.com/apiv11/Mod/{mod_id}/Posts"
+        f"https://gamebanana.com/apiv11/{model}/{mod_id}/Posts"
     )
     for post in posts:
         post_id = post.get("_idRow")

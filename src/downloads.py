@@ -134,7 +134,9 @@ def download_mod(
     preserve_time=True,
     used_folders=None,
     existing_folder=None,
+    section="mods",
 ):
+    api.content_model(section)
     mod_name = mod["_sName"]
     folder_name = _select_folder(
         path, mod_name, used_folders, existing_folder
@@ -145,7 +147,7 @@ def download_mod(
         mod.get("_tsDateModified") or mod.get("_tsDateAdded")
     )
     image_failures = []
-    for image in mod["_aPreviewMedia"]["_aImages"]:
+    for image in (mod.get("_aPreviewMedia") or {}).get("_aImages", []):
         image_url = image["_sBaseUrl"] + "/" + image["_sFile"]
         status = download_file(
             image_url,
@@ -157,7 +159,7 @@ def download_mod(
             image_failures.append(image_url)
 
     file_failures = []
-    for file_record in api.get_files(mod["_idRow"]):
+    for file_record in api.get_files(mod["_idRow"], section=section):
         status = download_file(
             file_record["url"],
             os.path.join(folder_name, file_record["name"]),
@@ -177,6 +179,7 @@ def download_mod(
                 source_id,
                 mod_index_record=mod,
                 preserve_time=preserve_time,
+                section=section,
             )
         except Exception as error:
             print(f"Failed to write metadata for {mod_name}: {error}")
@@ -186,7 +189,7 @@ def download_mod(
         state.failed.append(
             (
                 mod_name,
-                f"https://gamebanana.com/mods/{mod['_idRow']}",
+                f"https://gamebanana.com/{section}/{mod['_idRow']}",
                 image_failures,
                 file_failures,
             )

@@ -121,8 +121,9 @@ def category_path(
     category_name,
     folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
     hierarchy=None,
+    section="mods",
 ):
-    parent = os.path.join(base_path, "mods", game_name)
+    parent = os.path.join(base_path, section, game_name)
     return category_hierarchy_path(
         parent, hierarchy or [(category_id, category_name)], folder_format
     )
@@ -147,14 +148,17 @@ def category_hierarchy_path(
     return parent
 
 
-def read_mod_id(folder_name):
+def read_mod_id(folder_name, section="mods"):
     try:
         with open(
             os.path.join(folder_name, "metadata.json"),
             "r",
             encoding="utf-8",
         ) as metadata_file:
-            return int(json.load(metadata_file)["_mod"]["_idRow"])
+            metadata = json.load(metadata_file)
+            if metadata.get("_section", "mods") != section:
+                return None
+            return int(metadata["_mod"]["_idRow"])
     except (
         OSError,
         ValueError,
@@ -165,13 +169,13 @@ def read_mod_id(folder_name):
         return None
 
 
-def scan_existing_mods(path):
+def scan_existing_mods(path, section="mods"):
     existing_ids = {}
     if not os.path.isdir(path):
         return existing_ids
     for entry in os.scandir(path):
         if entry.is_dir():
-            mod_id = read_mod_id(entry.path)
+            mod_id = read_mod_id(entry.path, section=section)
             if mod_id is not None:
                 existing_ids[mod_id] = entry.path
     return existing_ids
