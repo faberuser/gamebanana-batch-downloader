@@ -23,6 +23,11 @@ def build_parser():
     )
     parser.add_argument("--path", help="Custom path to save submissions")
     parser.add_argument(
+        "--direct-category-only",
+        action="store_true",
+        help="Download only submissions assigned to this category, excluding subcategories",
+    )
+    parser.add_argument(
         "--sort",
         choices=list(SORT_ALIASES) + ["featured"],
         help="Download priority/order (category URL _sSort is also honored)",
@@ -90,6 +95,8 @@ def main(argv=None):
             source_type, source_id, url_sort, section = api.detect_source(source)
         except ValueError as error:
             parser.error(str(error))
+        if args.direct_category_only and source_type != "category":
+            parser.error("--direct-category-only requires a category URL or ID")
         type_label = {
             "category": "Category",
             "game": "Game",
@@ -117,6 +124,7 @@ def main(argv=None):
                 sort=selected_sort,
                 skip_existing=args.skip_existing,
                 delay=args.delay,
+                direct_category_only=args.direct_category_only,
                 category_folder_format=args.category_folder_format,
                 section=section,
             )

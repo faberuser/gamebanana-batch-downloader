@@ -175,7 +175,10 @@ def parse_mods(
     delay=2.0,
     category_folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
     section="mods",
+    direct_category_only=False,
 ):
+    if direct_category_only and source_type != "category":
+        raise ValueError("--direct-category-only requires a category source")
     parameters = _index_parameters(source_id, source_type, sort)
     index = api.get_mod_index(parameters, section=section)
     mod_count = index["_aMetadata"]["_nRecordCount"]
@@ -190,6 +193,11 @@ def parse_mods(
     _describe_source(
         source_id, source_type, mods, mod_count, num_pages
     )
+    if direct_category_only:
+        print(
+            "Only downloading directly assigned submissions; "
+            "the listed total includes subcategories."
+        )
     path = _output_path(
         source_id,
         source_type,
@@ -227,6 +235,7 @@ def parse_mods(
             time.sleep(delay)
 
     current = 1
+    direct_count = 0
     for page in range(1, num_pages + 1):
         if num_pages > 1:
             print(f"Page {page}/{num_pages}")
@@ -234,7 +243,24 @@ def parse_mods(
             parameters["_nPage"] = page
             mods = api.get_mod_index(parameters, section=section)["_aRecords"]
         for mod in mods:
+            if direct_category_only:
+                assigned_id, _ = category_from_mod(mod)
+                if assigned_id is None:
+                    # Do not infer membership from the category filter: it
+                    # also returns descendants. Resolve missing index data.
+                    detail = api.get_mod_record(mod["_idRow"], section=section)
+                    assigned_id, _ = category_from_mod(detail)
+                    if assigned_id is None:
+                        raise RuntimeError(
+                            f"Could not determine category for submission {mod['_idRow']}"
+                        )
+                if assigned_id != source_id:
+                    current += 1
+                    continue
+                direct_count += 1
             process_mod(mod, current)
             current += 1
         if page < num_pages and delay > 0:
             time.sleep(min(delay, 1.0))
+    if direct_category_only:
+        print(f"Found {direct_count} submissions assigned directly to category {source_id}.")

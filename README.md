@@ -93,6 +93,26 @@ gamebanana --path "C:\Downloads" --delay 5 https://gamebanana.com/mods/cats/7559
 
 Run `gamebanana --help` for every option and supported sort.
 
+### Download only directly assigned category submissions
+
+Use `--direct-category-only` to exclude submissions assigned to any subcategory:
+
+```bash
+python gamebanana.py --direct-category-only https://gamebanana.com/mods/cats/9139
+python gamebanana.py --direct-category-only --skip-existing https://gamebanana.com/mods/cats/3325
+```
+
+This also works when the selected category is nested inside another category,
+and with supported non-Mod category URLs. Without the flag, category downloads
+continue to include subcategories. Game, submitter, and individual submission
+URLs cannot use this flag.
+
+The downloader scans all index pages and compares assigned category IDs before
+downloading files or metadata. Large categories may take time to scan even when
+few submissions match. Sorting, folder formats, and resume behavior still apply;
+existing downloads are not moved or deleted. The initial API total includes
+subcategories; a final count reports directly assigned submissions.
+
 ### Other content sections
 
 The URL determines the content section. For example:
