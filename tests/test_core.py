@@ -9,7 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 import gamebanana.core as core
-from gamebanana import api, downloads, service
+from gamebanana import api, downloads, paths, service
 
 
 class FakeResponse:
@@ -44,6 +44,58 @@ def mod_record(mod_id=123, name="Bart Simpson"):
 
 
 class CoreTests(unittest.TestCase):
+    def test_filename_sanitizer_removes_windows_trailing_characters(self):
+        cases = {
+            "Call of Duty 2 ": "Call of Duty 2",
+            "Call of Duty 2. . ": "Call of Duty 2",
+            "Colt .45": "Colt .45",
+            "Other/Misc ": "Other-Misc",
+            "": "_",
+            " . . ": "_",
+            ".": "_",
+            "..": "_",
+        }
+        for name, expected in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(core.sanitize_filename(name), expected)
+
+    def test_game_and_category_with_trailing_space_download_and_resume(self):
+        for source_type, source_id in (("game", 30), ("category", 8528)):
+            with self.subTest(source_type=source_type):
+                with tempfile.TemporaryDirectory() as root:
+                    mod = mod_record()
+                    mod["_aGame"]["_sName"] = "Call of Duty 2 "
+                    expected = Path(root) / "mods" / "Call of Duty 2"
+                    if source_type == "category":
+                        expected /= "Colt .45"
+                    with (
+                        patch.object(service, "DEFAULT_OUTPUT_ROOT", root),
+                        patch.object(api, "get_mod_index", return_value={
+                            "_aMetadata": {"_nRecordCount": 1},
+                            "_aRecords": [mod],
+                        }),
+                        patch.object(api, "get_category_hierarchy", return_value=[
+                            (8528, "Colt .45"),
+                        ]),
+                        patch.object(service, "download_mod", return_value=None) as download,
+                    ):
+                        service.parse_mods(
+                            source_id, source_type, skip_existing=True, delay=0
+                        )
+                        self.assertEqual(Path(download.call_args.args[1]), expected)
+                        self.assertTrue(expected.is_dir())
+                        completed = expected / "Completed mod"
+                        completed.mkdir()
+                        (completed / "metadata.json").write_text(
+                            json.dumps({"_mod": {"_idRow": 123}}),
+                            encoding="utf-8",
+                        )
+                        download.reset_mock()
+                        service.parse_mods(
+                            source_id, source_type, skip_existing=True, delay=0
+                        )
+                        download.assert_not_called()
+
     def test_detects_category_sort_without_network(self):
         result = core.detect_source_type(
             "https://gamebanana.com/mods/cats/5299"
@@ -63,6 +115,127 @@ class CoreTests(unittest.TestCase):
 
     def test_category_name_comes_from_index_record(self):
         self.assertEqual(core.get_category_name(7559, mod_record()), "Ness")
+
+    def test_category_breadcrumb_preserves_all_levels(self):
+        hierarchy = [(10, "Levels"), (20, "Zone"), (30, "Other/Misc")]
+        entries = [{
+            "position": 1,
+            "item": {"@id": "https://gamebanana.com/games/6878", "name": "Game"},
+        }]
+        entries.extend({
+            "position": position,
+            "item": {
+                "@id": f"https://gamebanana.com/mods/cats/{category_id}",
+                "name": name,
+            },
+        } for position, (category_id, name) in enumerate(hierarchy, 2))
+        response = FakeResponse({})
+        response.text = (
+            '<script type="application/ld+json" id="StructuredDataBreadcrumb">'
+            + json.dumps({"itemListElement": list(reversed(entries))})
+            + '</script><script>unrelated()</script>'
+        )
+        with patch.object(api.session, "get", return_value=response) as request:
+            self.assertEqual(api.get_category_hierarchy(30), hierarchy)
+        request.assert_called_once_with(
+            "https://gamebanana.com/mods/cats/30", timeout=30
+        )
+
+    def test_invalid_breadcrumb_does_not_fall_back_to_flat_path(self):
+        for content in ("", "not json", json.dumps({
+            "itemListElement": [{"position": 1, "item": {
+                "@id": "https://gamebanana.com/mods/cats/99", "name": "Other/Misc",
+            }}],
+        })):
+            with self.subTest(content=content):
+                response = FakeResponse({})
+                response.text = (
+                    '<script id="StructuredDataBreadcrumb">' + content + '</script>'
+                )
+                with patch.object(api.session, "get", return_value=response):
+                    with self.assertRaisesRegex(RuntimeError, "hierarchy for 30"):
+                        api.get_category_hierarchy(30)
+
+    def test_same_named_categories_have_distinct_paths(self):
+        with tempfile.TemporaryDirectory() as root:
+            with (
+                patch.object(service, "DEFAULT_OUTPUT_ROOT", root),
+                patch.object(api, "get_category_hierarchy", side_effect=[
+                    [(6089, "Stages"), (6090, "Other/Misc")],
+                    [(3319, "Other/Misc")],
+                ]),
+            ):
+                nested = service._output_path(6090, "category", [mod_record()], None, "{name}")
+                standalone = service._output_path(3319, "category", [mod_record()], None, "{name}")
+            game = Path(root) / "mods" / "Super Smash Bros. Ultimate"
+            self.assertEqual(Path(nested), game / "Stages" / "Other-Misc")
+            self.assertEqual(Path(standalone), game / "Other-Misc")
+
+    def test_custom_path_and_format_apply_to_every_level(self):
+        with tempfile.TemporaryDirectory() as root:
+            with patch.object(api, "get_category_hierarchy", return_value=[
+                (10, "Levels"), (20, "Zone"), (30, "Other/Misc"),
+            ]):
+                result = service._output_path(
+                    30, "category", [mod_record()], root, "{name} ({id})"
+                )
+            self.assertEqual(
+                Path(result), Path(root) / "Levels (10)" / "Zone (20)" / "Other-Misc (30)"
+            )
+
+    def test_flat_subcategory_folder_is_not_moved(self):
+        with tempfile.TemporaryDirectory() as root:
+            flat = Path(root) / "Other-Misc"
+            flat.mkdir()
+            marker = flat / "existing.txt"
+            marker.write_text("existing mods", encoding="utf-8")
+            result = paths.category_hierarchy_path(
+                root, [(6089, "Stages"), (6090, "Other/Misc")]
+            )
+            self.assertEqual(Path(result), Path(root) / "Stages" / "Other-Misc")
+            self.assertEqual(marker.read_text(encoding="utf-8"), "existing mods")
+
+    def test_single_mod_uses_category_hierarchy(self):
+        with tempfile.TemporaryDirectory() as root:
+            with (
+                patch.object(service, "DEFAULT_OUTPUT_ROOT", root),
+                patch.object(api, "get_mod_record", return_value=mod_record()),
+                patch.object(api, "get_category_hierarchy", return_value=[
+                    (12, "Skins"), (7559, "Ness"),
+                ]),
+                patch.object(service, "download_mod") as download,
+            ):
+                service.parse_single_mod(123)
+            self.assertEqual(
+                Path(download.call_args.args[1]),
+                Path(root) / "mods" / "Super Smash Bros. Ultimate" / "Skins" / "Ness",
+            )
+
+    def test_nested_category_batch_download_and_resume(self):
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root) / "Stages" / "Other-Misc"
+            completed = target / "Bart Simpson"
+            with (
+                patch.object(api, "get_mod_index", return_value={
+                    "_aMetadata": {"_nRecordCount": 1},
+                    "_aRecords": [mod_record()],
+                }),
+                patch.object(api, "get_category_hierarchy", return_value=[
+                    (6089, "Stages"), (6090, "Other/Misc"),
+                ]),
+                patch.object(service, "download_mod", return_value=None) as download,
+            ):
+                service.parse_mods(6090, custom_path=root, delay=0)
+                self.assertEqual(Path(download.call_args.args[1]), target)
+                completed.mkdir()
+                (completed / "metadata.json").write_text(
+                    json.dumps({"_mod": {"_idRow": 123}}), encoding="utf-8"
+                )
+                download.reset_mock()
+                service.parse_mods(
+                    6090, custom_path=root, skip_existing=True, delay=0
+                )
+                download.assert_not_called()
 
     def test_category_folder_formats(self):
         expected = {
@@ -168,6 +341,7 @@ class CoreTests(unittest.TestCase):
 
             with (
                 patch.object(api, "session", FakeSession()),
+                patch.object(api, "get_category_hierarchy", return_value=[(7559, "Ness")]),
                 patch.object(api, "get_files", unexpected_detail_request),
             ):
                 core.parse_mods(

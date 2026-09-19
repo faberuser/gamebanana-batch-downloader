@@ -12,9 +12,13 @@ from .config import (
 
 
 def sanitize_filename(name):
+    """Normalize a filename component before creating or looking it up."""
     for character in '\\/|:*?"<>':
         name = name.replace(character, "-")
-    return name
+    # Windows strips trailing spaces and periods during directory creation.
+    # Use that same name for subsequent scans, downloads, and resume checks.
+    # Keep empty/dot-only names from resolving to the parent directory.
+    return name.rstrip(" .") or "_"
 
 
 def apply_timestamp(path, timestamp):
@@ -120,21 +124,45 @@ def category_path(
     category_id,
     category_name,
     folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
+    hierarchy=None,
+    section="mods",
 ):
-    parent = os.path.join(base_path, "mods", game_name)
-    return migrate_category_path(
-        parent, category_id, category_name, folder_format
+    parent = os.path.join(base_path, section, game_name)
+    return category_hierarchy_path(
+        parent, hierarchy or [(category_id, category_name)], folder_format
     )
 
 
-def read_mod_id(folder_name):
+def category_hierarchy_path(
+    parent, hierarchy, folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
+    extra_legacy_labels=(),
+):
+    """Build each category level, migrating formats only within its parent.
+
+    Old flat subcategory folders may contain unrelated categories with the
+    same name, so they must never be moved into the new hierarchy wholesale.
+    """
+    for category_id, category_name in hierarchy:
+        parent = migrate_category_path(
+            parent, category_id, category_name, folder_format,
+            extra_legacy_labels=(
+                extra_legacy_labels if len(hierarchy) == 1 else ()
+            ),
+        )
+    return parent
+
+
+def read_mod_id(folder_name, section="mods"):
     try:
         with open(
             os.path.join(folder_name, "metadata.json"),
             "r",
             encoding="utf-8",
         ) as metadata_file:
-            return int(json.load(metadata_file)["_mod"]["_idRow"])
+            metadata = json.load(metadata_file)
+            if metadata.get("_section", "mods") != section:
+                return None
+            return int(metadata["_mod"]["_idRow"])
     except (
         OSError,
         ValueError,
@@ -145,13 +173,13 @@ def read_mod_id(folder_name):
         return None
 
 
-def scan_existing_mods(path):
+def scan_existing_mods(path, section="mods"):
     existing_ids = {}
     if not os.path.isdir(path):
         return existing_ids
     for entry in os.scandir(path):
         if entry.is_dir():
-            mod_id = read_mod_id(entry.path)
+            mod_id = read_mod_id(entry.path, section=section)
             if mod_id is not None:
                 existing_ids[mod_id] = entry.path
     return existing_ids

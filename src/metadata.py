@@ -33,13 +33,15 @@ def write_mod_metadata(
     category_id,
     mod_index_record=None,
     preserve_time=True,
+    section="mods",
 ):
-    mod = api.get_mod_metadata(mod_id, METADATA_PROPERTIES)
+    mod = api.get_mod_metadata(mod_id, METADATA_PROPERTIES, section=section)
     metadata = {
+        "_section": section,
         "_categoryId": category_id,
         "_mod": mod,
         "_modIndexRecord": mod_index_record,
-        "_comments": api.get_posts_with_replies(mod_id),
+        "_comments": api.get_posts_with_replies(mod_id, section=section),
     }
     metadata_path = os.path.join(folder_name, "metadata.json")
     temporary_path = metadata_path + ".part"
