@@ -110,8 +110,10 @@ URLs cannot use this flag.
 The downloader scans all index pages and compares assigned category IDs before
 downloading files or metadata. Large categories may take time to scan even when
 few submissions match. Sorting, folder formats, and resume behavior still apply;
-existing downloads are not moved or deleted. The initial API total includes
-subcategories; a final count reports directly assigned submissions.
+existing downloads are not moved or deleted. All index pages are scanned before downloads begin so the preview and download
+progress count only direct matches (for example, `1/54`, `2/54`). Scanning has
+separate page progress. With `--skip-existing`, completed matches still count
+toward this total and are reported as skipped.
 
 ### Other content sections
 

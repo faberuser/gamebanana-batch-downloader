@@ -190,14 +190,36 @@ def parse_mods(
         return
 
     mods = index["_aRecords"]
-    _describe_source(
-        source_id, source_type, mods, mod_count, num_pages
-    )
     if direct_category_only:
+        print("Scanning category pages to count directly assigned submissions...")
+        direct_mods = []
+        for page in range(1, num_pages + 1):
+            print(f"Scanning page {page}/{num_pages}")
+            if page > 1:
+                parameters["_nPage"] = page
+                mods = api.get_mod_index(parameters, section=section)["_aRecords"]
+            for mod in mods:
+                assigned_id, _ = category_from_mod(mod)
+                if assigned_id is None:
+                    detail = api.get_mod_record(mod["_idRow"], section=section)
+                    assigned_id, _ = category_from_mod(detail)
+                    if assigned_id is None:
+                        raise RuntimeError(
+                            f"Could not determine category for submission {mod['_idRow']}"
+                        )
+                if assigned_id == source_id:
+                    direct_mods.append(mod)
+            if page < num_pages and delay > 0:
+                time.sleep(min(delay, 1.0))
+        mods = direct_mods
+        mod_count = len(mods)
         print(
-            "Only downloading directly assigned submissions; "
-            "the listed total includes subcategories."
+            f"Found {mod_count} submissions assigned directly to category {source_id}."
         )
+        if not mods:
+            return
+    else:
+        _describe_source(source_id, source_type, mods, mod_count, num_pages)
     path = _output_path(
         source_id,
         source_type,
@@ -234,8 +256,12 @@ def parse_mods(
         if delay > 0:
             time.sleep(delay)
 
+    if direct_category_only:
+        for current, mod in enumerate(mods, 1):
+            process_mod(mod, current)
+        return
+
     current = 1
-    direct_count = 0
     for page in range(1, num_pages + 1):
         if num_pages > 1:
             print(f"Page {page}/{num_pages}")
@@ -243,24 +269,7 @@ def parse_mods(
             parameters["_nPage"] = page
             mods = api.get_mod_index(parameters, section=section)["_aRecords"]
         for mod in mods:
-            if direct_category_only:
-                assigned_id, _ = category_from_mod(mod)
-                if assigned_id is None:
-                    # Do not infer membership from the category filter: it
-                    # also returns descendants. Resolve missing index data.
-                    detail = api.get_mod_record(mod["_idRow"], section=section)
-                    assigned_id, _ = category_from_mod(detail)
-                    if assigned_id is None:
-                        raise RuntimeError(
-                            f"Could not determine category for submission {mod['_idRow']}"
-                        )
-                if assigned_id != source_id:
-                    current += 1
-                    continue
-                direct_count += 1
             process_mod(mod, current)
             current += 1
         if page < num_pages and delay > 0:
             time.sleep(min(delay, 1.0))
-    if direct_category_only:
-        print(f"Found {direct_count} submissions assigned directly to category {source_id}.")
