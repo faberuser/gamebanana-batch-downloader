@@ -5,6 +5,19 @@ import os
 
 DEFAULT_OUTPUT_ROOT = os.getcwd()
 
+# URL sections and their distinct API models (IDs overlap between models).
+CONTENT_MODELS = {
+    "mods": "Mod",
+    "sounds": "Sound",
+    "tuts": "Tutorial",
+    "tools": "Tool",
+    "scripts": "Script",
+    "projects": "Project",
+    "concepts": "Concept",
+    "wips": "Wip",
+}
+FILE_SECTIONS = {"mods", "sounds", "tools", "wips"}
+
 SORT_ALIASES = {
     "newest": "Generic_Newest",
     "oldest": "Generic_Oldest",

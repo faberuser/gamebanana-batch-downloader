@@ -4,6 +4,7 @@ New code should import from the focused modules directly.
 """
 
 from .api import (
+    detect_source,
     detect_source_type,
     get_category_name,
     get_files,
@@ -46,6 +47,7 @@ __all__ = [
     "category_id_from_record",
     "category_path",
     "detect_source_type",
+    "detect_source",
     "download_file",
     "download_mod",
     "failed",
