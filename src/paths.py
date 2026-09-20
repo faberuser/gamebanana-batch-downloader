@@ -126,23 +126,30 @@ def category_path(
     folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
     hierarchy=None,
     section="mods",
+    bracket_subcategories=False,
 ):
     parent = os.path.join(base_path, section, game_name)
     return category_hierarchy_path(
-        parent, hierarchy or [(category_id, category_name)], folder_format
+        parent, hierarchy or [(category_id, category_name)], folder_format,
+        bracket_subcategories=bracket_subcategories,
     )
 
 
 def category_hierarchy_path(
     parent, hierarchy, folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
     extra_legacy_labels=(),
+    bracket_subcategories=False,
 ):
     """Build each category level, migrating formats only within its parent.
 
     Old flat subcategory folders may contain unrelated categories with the
     same name, so they must never be moved into the new hierarchy wholesale.
     """
-    for category_id, category_name in hierarchy:
+    for depth, (category_id, category_name) in enumerate(hierarchy):
+        if bracket_subcategories and depth > 0:
+            label = format_category_folder(category_id, category_name, folder_format)
+            parent = os.path.join(parent, f"[{label}]")
+            continue
         parent = migrate_category_path(
             parent, category_id, category_name, folder_format,
             extra_legacy_labels=(

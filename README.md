@@ -115,6 +115,47 @@ progress count only direct matches (for example, `1/54`, `2/54`). Scanning has
 separate page progress. With `--skip-existing`, completed matches still count
 toward this total and are reported as skipped.
 
+### Whole-game archives
+
+A whole-game URL downloads all supported sections by default (`mods`, `sounds`,
+`tuts`, `tools`, `scripts`, `projects`, `concepts`, and `wips`). Empty sections
+are skipped. Select or exclude sections for each invocation:
+
+```bash
+python gamebanana.py https://gamebanana.com/games/4660
+python gamebanana.py --sections sounds,tuts https://gamebanana.com/games/30
+python gamebanana.py --exclude-sections wips,projects https://gamebanana.com/games/30
+```
+
+Both whole-game and section-specific game downloads place each submission in
+its assigned category, preserving every ancestor. Direct parent-category mods
+stay in that parent, alongside its subcategory folders. No
+`--direct-category-only` flag is needed for a whole game.
+
+```text
+mods/
+└── Counter-Strike- Global Offensive/
+    └── Maps/
+        └── [Combat-Skill]/
+        │   └── [Arsenal]/
+        │       └── Submission Name/
+        └── gm_construct/
+```
+
+Root categories stay plain; subcategories use `[Name]` by default, including
+category and individual-submission CLI downloads. Only category labels get
+brackets, not submission names. Use `--no-category-brackets` for plain names;
+`--category-folder-format` still controls the label inside the brackets.
+Use `--flat` to disable category organization for game downloads.
+
+With `--path`, organized games use `PATH/SECTION/Game/Category/...`.
+Existing flat archives and unbracketed subcategory directories are not moved
+into the new layout automatically. Use `--flat` to resume a flat game archive,
+`--no-category-brackets` to reuse plain category folders, or move completed
+submission folders into their new locations before using `--skip-existing`.
+Section selection applies to every whole-game URL in the invocation; use
+separate commands for games requiring different selections.
+
 ### Other content sections
 
 The URL determines the content section. For example:
@@ -127,18 +168,19 @@ gamebanana https://gamebanana.com/tuts/games/5892
 ```
 
 The same individual, category, and game-section URL forms work for `mods`,
-`sounds`, `tuts`, `tools`, `scripts`, `projects`, and `concepts`. Unsupported URL
-sections are rejected rather than interpreted as mod IDs. Bare numeric IDs,
-`/games/ID`, and `/members/ID` retain the existing Mods behavior; use a full URL
-for other sections.
+`sounds`, `tuts`, `tools`, `scripts`, `projects`, `concepts`, and `wips`. Unsupported URL
+sections are rejected rather than interpreted as mod IDs. Game IDs and `/games/ID` select all supported sections; `/members/ID`
+continues to select Mods. Explicit URLs such as `/sounds/games/ID` select only
+that section. Use full URLs to avoid ambiguous numeric IDs.
 
 Each section has its own output directory, such as
 `sounds/Sonic Adventure DX/Other-Misc/Submission Name`. Game-section batches
-save directly under `sounds/Sonic Adventure DX`. With `--path`, non-Mod batches
-use a section subdirectory (for example, `C:\Downloads\sounds\game_5892`), and
-individual submissions use names such as `sound_92865`.
+use category hierarchies under `sounds/Sonic Adventure DX`. With `--path`,
+organized games use the same layout below that path; flat non-Mod batches use
+section subdirectories such as `C:\Downloads\sounds\game_5892`. Individual
+submissions with `--path` use names such as `sound_92865`.
 
-Sounds and Tools download their attached files. Tutorials, Scripts, Projects,
+Sounds, Tools, and WiPs download their attached files when present. Tutorials, Scripts, Projects,
 and Concepts archive their text, code (when present), comments, and preview
 images in the submission folder; text and code are stored in `metadata.json`.
 Resume metadata records the section so overlapping IDs cannot cause a sound
@@ -164,11 +206,12 @@ gamebanana --category-folder-format "{name} ({id})" https://gamebanana.com/mods/
 ```
 
 When changing formats, a single folder matching one of the layouts above is
-renamed automatically. If multiple matching folders already exist, they are
+renamed automatically for plain category paths. Bracketed subcategory paths
+are created without renaming existing folders. If multiple matching folders already exist, they are
 left untouched to avoid merging data unexpectedly.
 
 The format applies to every level of the category hierarchy. For example,
-category 6090 is saved under `Super Smash Bros. Ultimate/Stages/Other-Misc`,
+category 6090 is saved under `Super Smash Bros. Ultimate/Stages/[Other-Misc]`,
 while category 3319 uses `Super Smash Bros. Ultimate/Other-Misc`. Deeper
 subcategories preserve all intermediate folders. With `--path`, Mods category
 hierarchies are placed directly inside the chosen directory; other content

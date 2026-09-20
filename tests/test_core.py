@@ -66,8 +66,7 @@ class CoreTests(unittest.TestCase):
                     mod = mod_record()
                     mod["_aGame"]["_sName"] = "Call of Duty 2 "
                     expected = Path(root) / "mods" / "Call of Duty 2"
-                    if source_type == "category":
-                        expected /= "Colt .45"
+                    expected /= "Colt .45"
                     with (
                         patch.object(service, "DEFAULT_OUTPUT_ROOT", root),
                         patch.object(api, "get_mod_index", return_value={
@@ -213,7 +212,7 @@ class CoreTests(unittest.TestCase):
 
     def test_nested_category_batch_download_and_resume(self):
         with tempfile.TemporaryDirectory() as root:
-            target = Path(root) / "Stages" / "Other-Misc"
+            target = Path(root) / "Stages" / "[Other-Misc]"
             completed = target / "Bart Simpson"
             with (
                 patch.object(api, "get_mod_index", return_value={

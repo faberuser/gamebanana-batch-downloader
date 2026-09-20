@@ -27,6 +27,7 @@ def parse_single_mod(
     skip_existing=False,
     category_folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
     section="mods",
+    bracket_subcategories=False,
 ):
     model = api.content_model(section)
     mod = api.get_mod_record(mod_id, section=section)
@@ -43,6 +44,7 @@ def parse_single_mod(
             category_folder_format,
             hierarchy=api.get_category_hierarchy(category_id, section=section),
             section=section,
+            bracket_subcategories=bracket_subcategories,
         )
     else:
         path = os.path.join(
@@ -92,6 +94,7 @@ def _output_path(
     custom_path,
     category_folder_format,
     section="mods",
+    bracket_subcategories=False,
 ):
     api.content_model(section)
     if custom_path and section != "mods":
@@ -105,6 +108,7 @@ def _output_path(
         return category_hierarchy_path(
             parent, hierarchy, category_folder_format,
             extra_legacy_labels=(f"category_{source_id}",) if custom_path else (),
+            bracket_subcategories=bracket_subcategories,
         )
 
     if source_type == "submitter":
@@ -176,6 +180,8 @@ def parse_mods(
     category_folder_format=DEFAULT_CATEGORY_FOLDER_FORMAT,
     section="mods",
     direct_category_only=False,
+    organize_categories=True,
+    bracket_subcategories=True,
 ):
     if direct_category_only and source_type != "category":
         raise ValueError("--direct-category-only requires a category source")
@@ -227,32 +233,71 @@ def parse_mods(
         custom_path,
         category_folder_format,
         section=section,
+        bracket_subcategories=bracket_subcategories,
     )
+    if source_type == "game" and organize_categories:
+        path = os.path.join(
+            custom_path or DEFAULT_OUTPUT_ROOT, section,
+            sanitize_filename(mods[0]["_aGame"]["_sName"]),
+        )
     os.makedirs(path, exist_ok=True)
 
     existing_ids = scan_existing_mods(path, section=section)
     used_folders = set(existing_ids.values())
+    category_paths = {}
+    folder_state = {}
+
+    def destination(mod):
+        if source_type != "game" or not organize_categories:
+            return path, existing_ids, used_folders
+        category_id, _ = category_from_mod(mod)
+        if category_id is None:
+            detail = api.get_mod_record(mod["_idRow"], section=section)
+            category_id, _ = category_from_mod(detail)
+        if category_id not in category_paths:
+            if category_id is None:
+                target = os.path.join(path, "_uncategorized")
+            else:
+                target = category_hierarchy_path(
+                    path, api.get_category_hierarchy(category_id, section=section),
+                    category_folder_format,
+                    bracket_subcategories=bracket_subcategories,
+                )
+            os.makedirs(target, exist_ok=True)
+            category_paths[category_id] = target
+            if target not in folder_state:
+                ids = scan_existing_mods(target, section=section)
+                # Reserve child category directories and incomplete downloads
+                # too, so submissions cannot overwrite a category folder.
+                occupied = {entry.path for entry in os.scandir(target) if entry.is_dir()}
+                folder_state[target] = (ids, occupied)
+        target = category_paths[category_id]
+        ids, occupied = folder_state[target]
+        # New category directories may have appeared since the first scan.
+        occupied.update(entry.path for entry in os.scandir(target) if entry.is_dir())
+        return target, ids, occupied
 
     def process_mod(mod, current):
+        target, target_ids, target_used = destination(mod)
         mod_id = mod["_idRow"]
         print(f"\n----- {mod['_sName']} ({current}/{mod_count}) ------")
-        if skip_existing and mod_id in existing_ids:
+        if skip_existing and mod_id in target_ids:
             print(
                 f"Skipping already downloaded submission {mod_id}: "
-                f"{existing_ids[mod_id]}"
+                f"{target_ids[mod_id]}"
             )
             return
         completed_folder = download_mod(
             mod,
-            path,
+            target,
             source_id,
             preserve_time=preserve_time,
-            used_folders=used_folders,
-            existing_folder=existing_ids.get(mod_id),
+            used_folders=target_used,
+            existing_folder=target_ids.get(mod_id),
             section=section,
         )
         if completed_folder:
-            existing_ids[mod_id] = completed_folder
+            target_ids[mod_id] = completed_folder
         if delay > 0:
             time.sleep(delay)
 

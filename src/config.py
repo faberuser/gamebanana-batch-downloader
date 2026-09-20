@@ -14,8 +14,9 @@ CONTENT_MODELS = {
     "scripts": "Script",
     "projects": "Project",
     "concepts": "Concept",
+    "wips": "Wip",
 }
-FILE_SECTIONS = {"mods", "sounds", "tools"}
+FILE_SECTIONS = {"mods", "sounds", "tools", "wips"}
 
 SORT_ALIASES = {
     "newest": "Generic_Newest",

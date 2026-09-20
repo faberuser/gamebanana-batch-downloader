@@ -221,7 +221,7 @@ def get_files(mod_id, section="mods"):
             "url": file_record["_sDownloadUrl"],
             "ts": file_record.get("_tsDateAdded"),
         }
-        for file_record in data["_aFiles"]
+        for file_record in (data["_aFiles"] or [])
     ]
 
 
